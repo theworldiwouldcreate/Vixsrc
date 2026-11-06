@@ -108,7 +108,12 @@ async function resolveStream(type, rawId) {
     });
 
     if (!response.ok) {
-      throw new Error(`VixSrc returned HTTP ${response.status}`);
+  const body = await response.text();
+
+  console.error("[VixSrc] HTTP Status:", response.status);
+  console.error("[VixSrc] Response:", body.slice(0, 1000));
+
+  throw new Error(`VixSrc returned HTTP ${response.status}`);
     }
 
     const html = await response.text();
