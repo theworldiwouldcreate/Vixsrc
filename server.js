@@ -30,36 +30,46 @@ function sendJSON(res, data, status = 200) {
 function extractPlaylist(html) {
   html = html.replace(/\\\//g, "/");
 
-  const masterIndex = html.indexOf("window.masterPlaylist");
+  let playlist = null;
 
-  if (masterIndex !== -1) {
-    const section = html.slice(masterIndex, masterIndex + 10000);
-
-    const url = section.match(/\burl\s*:\s*["']([^"']+)["']/);
-    const token = section.match(/\btoken\s*:\s*["']([^"']+)["']/);
-    const expires = section.match(/\bexpires\s*:\s*["']([^"']+)["']/);
+  if (html.includes("window.masterPlaylist")) {
+    const url = html.match(/url:\s*['"]([^'"]+)['"]/);
+    const token = html.match(/['"]?token['"]?\s*:\s*['"]([^'"]+)['"]/);
+    const expires = html.match(/['"]?expires['"]?\s*:\s*['"]([^'"]+)['"]/);
 
     if (url && token && expires) {
-      const playlist = new URL(url[1]);
+      const separator = url[1].includes("?") ? "&" : "?";
 
-      playlist.searchParams.set("token", token[1]);
-      playlist.searchParams.set("expires", expires[1]);
-      playlist.searchParams.set("h", "1");
-      playlist.searchParams.set("lang", "en");
-
-      return playlist.href;
+      playlist =
+        `${url[1]}${separator}token=${encodeURIComponent(token[1])}` +
+        `&expires=${encodeURIComponent(expires[1])}&h=1&lang=en`;
     }
   }
 
-  const direct = html.match(
-    /https?:\/\/[^"'\\\s]+\.m3u8(?:\?[^"'\\\s]*)?/
-  );
+  if (!playlist) {
+    const direct = html.match(
+      /(https?:\/\/[^'"\s]+\.m3u8[^'"\s]*)/
+    );
 
-  if (direct) {
-    return direct[0];
+    if (direct) playlist = direct[1];
   }
 
-  return null;
+  if (!playlist) {
+    const scripts = html.match(/<script[^>]*>(.*?)<\/script>/gs) || [];
+
+    for (const script of scripts) {
+      const match = script.match(
+        /['"]?(https?:\/\/[^'"\s]+(?:\.m3u8|playlist)[^'"\s]*)/
+      );
+
+      if (match) {
+        playlist = match[1];
+        break;
+      }
+    }
+  }
+
+  return playlist;
 }
 
 async function resolveStream(type, rawId) {
